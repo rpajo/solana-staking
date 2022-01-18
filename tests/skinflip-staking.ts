@@ -1,7 +1,7 @@
 import * as anchor from '@project-serum/anchor';
 import { SkinflipStaking } from '../target/types/skinflip_staking';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { loadKeypair, SKINFLIP_STAKING_SEED_PREFIX } from '../utils/programs';
+import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { ASSOCIATED_TOKEN_PROGRAM, loadKeypair, SKINFLIP_STAKING_SEED_PREFIX } from '../utils/programs';
 
 
 describe('skinflip-staking', () => {
@@ -14,15 +14,15 @@ describe('skinflip-staking', () => {
 
   // The Account to create.
 
-  const stakingNftVault = loadKeypair('test.json');
+  const stakingNftVault = loadKeypair('tests/keypairs/test-vault.json');
   const stakingMachine = anchor.web3.Keypair.generate();
+  const nftToken = new anchor.web3.PublicKey('D7Gd5JQ9ZwL6VihX6FnyHMwJbwcUnxUygeaE5rqbRRcb');
 
   console.log('Initializer: ', provider.wallet.publicKey.toString());
   console.log('Staking NFT Vault: ', stakingNftVault.publicKey.toString());
   console.log('Staking Machine: ', stakingMachine.publicKey.toString());
 
   it('should initialize', async () => {
-
     const tx = await program.rpc.initialize({
       accounts: {
         initializer: provider.wallet.publicKey,
@@ -37,29 +37,77 @@ describe('skinflip-staking', () => {
   });
 
   it('should accept correct accounts for staking', async () => {
-    const tokenAccount = anchor.web3.Keypair.generate();
+    // Create a new account with seed
+    const [stakingAccount, bump] = await anchor.web3.PublicKey.findProgramAddress(
+      [
+        Buffer.from(SKINFLIP_STAKING_SEED_PREFIX),
+        provider.wallet.publicKey.toBuffer(),
+        nftToken.toBuffer()
+      ],
+      program.programId
+    );
+
+    const [tokenAccount, _bump] = await anchor.web3.PublicKey.findProgramAddress(
+      [nftToken.toBuffer()],
+      program.programId
+    );
+
+    const tx = await program.rpc.stake(
+      bump,
+      nftToken,
+      {
+        accounts: {
+          stakingMachine: stakingMachine.publicKey,
+          
+          nftStakeData: stakingAccount,
+          // nftTokenAccountRecipient: tokenAccount,
+
+          nftHolder: provider.wallet.publicKey,
+          
+          tokenProgram: TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+        },
+        signers: []
+      }
+    );
+
+    console.log("Your transaction signature", tx);
+  });
+
+  it('should accept correct accounts for unstaking', async () => {
 
     // Create a new account with seed
     const [stakingAccount, bump] = await anchor.web3.PublicKey.findProgramAddress(
       [
         Buffer.from(SKINFLIP_STAKING_SEED_PREFIX),
         provider.wallet.publicKey.toBuffer(),
-        tokenAccount.publicKey.toBuffer()
+        nftToken.toBuffer()
       ],
       program.programId
     );
 
-    const tx = await program.rpc.stake(bump, {
-      accounts: {
-        stakingMachine: stakingMachine.publicKey,
-        nftHolder: provider.wallet.publicKey,
-        nftStakeData: stakingAccount,
-        nftTokenAccount: tokenAccount.publicKey,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId
-      },
-      signers: []
-    });
+    const [tokenAccount, _bump] = await anchor.web3.PublicKey.findProgramAddress(
+      [nftToken.toBuffer()],
+      program.programId
+    );
+
+    const tx = await program.rpc.unstake(
+      bump,
+      nftToken,
+      {
+        accounts: {
+          stakingMachine: stakingMachine.publicKey,
+          nftStakeData: stakingAccount,
+          // nftTokenAccountRecipient: tokenAccount,
+          nftHolder: provider.wallet.publicKey,
+          clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
+        },
+        signers: []
+      }
+    );
 
     console.log("Your transaction signature", tx);
   });

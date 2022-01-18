@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     token::{Mint, Token, TokenAccount},
+    // associated_token::AssociatedToken,
+    associated_token::AssociatedToken
+    // mint,
 };
 
 declare_id!("99pkxD7en56LmNoTQcjNdy4vreeCJBjeaoDvWJe2mcjc");
@@ -36,32 +39,51 @@ pub mod skinflip_staking {
         Ok(())
     }
 
-    pub fn stake(ctx: Context<StakeInstructionStruct>, bump: u8) -> ProgramResult {
+    pub fn stake(ctx: Context<StakeInstructionStruct>, bump: u8,  nft_token: Pubkey) -> ProgramResult {
         msg!("Stake SkinFlip NFT");
+
+        msg!("NFT: {}", nft_token.key().to_string());
 
         let staking_machine = &mut ctx.accounts.staking_machine;
         let nft_holder = &mut ctx.accounts.nft_holder;
-        let nft_token_account = &mut ctx.accounts.nft_token_account;
+        let nft_stake_data = &mut ctx.accounts.nft_stake_data;
+
+        // let nft_token = &mut ctx.accounts.nft_token;
+        // let nft_token_account_recipient = &mut ctx.accounts.nft_token_account_recipient;
+        let clock = &ctx.accounts.clock;
+
 
         msg!("Staking machine key: {}", staking_machine.key().to_string());
 
         msg!("Nft holder owner: {}", nft_holder.owner.to_string());
         msg!("Nft holder key: {}", nft_holder.key.to_string());
 
-        msg!("Nft token account key: {}", nft_token_account.key.to_string());
-        msg!("Nft token account owner: {}", nft_token_account.owner.to_string());
+        // msg!("Nft token account mint: {}", nft_token_account_recipient.mint.to_string());
+        // msg!("Nft token account owner: {}", nft_token_account_recipient.owner.to_string());
 
         msg!("Bump: {}", bump);
         // msg!("Nft token account mint: {}", nft_token_account.mint.to_string());
         // msg!("Nft token account close_authority: {}", nft_token_account.close_authority.unwrap().to_string());
         // msg!("Nft token account amount: {}", nft_token_account.amount);
-
         staking_machine.staked_nfts = staking_machine.staked_nfts + 1;
+        nft_stake_data.staking_date = clock.unix_timestamp;
+        
+        msg!("Staking time: {}", nft_stake_data.staking_date);
+        
 
         Ok(())
     }
 
-    pub fn unstake(_ctx: Context<UnstakeInstructionStruct>) -> ProgramResult {
+    pub fn unstake(ctx: Context<UnstakeInstructionStruct>, bump: u8,  nft_token: Pubkey) -> ProgramResult {
+        let staking_machine = &mut ctx.accounts.staking_machine;
+        let nft_holder = &mut ctx.accounts.nft_holder;
+        let nft_stake_data = &mut ctx.accounts.nft_stake_data;
+
+        msg!("Unstake SkinFlip NFT");
+        msg!("NFT: {}", nft_token.key().to_string());
+
+        msg!("Staked at {}", nft_stake_data.staking_date);
+
         Err(ErrorCode::StakingPeriodActive.into())
     }
 }
@@ -87,43 +109,61 @@ pub struct Initialize<'info> {
 
 
 #[derive(Accounts)]
-#[instruction(bump: u8)]
+#[instruction(bump: u8, nft_token: Pubkey)]
 pub struct StakeInstructionStruct<'info> {
     #[account(mut)]
     pub staking_machine: ProgramAccount<'info, StakingMachine>,
 
     #[account(constraint=(nft_holder.data_is_empty() && nft_holder.lamports() > 0))]
     pub nft_holder: AccountInfo<'info>,
-
+/*
     #[account(mut)]
-    //the token account to withdraw from
-    pub nft_token_account: AccountInfo<'info>,
+    pub nft_token: AccountInfo<'info>,
+
+         
+    #[account(
+        init,
+        payer = nft_holder,
+        associated_token::mint = nft_token,
+        associated_token::authority = staking_machine,
+    )]
+    //the token account to withdraw TO
+    pub nft_token_account_recipient: Account<'info, TokenAccount>,
+    */
 
     #[account(
         init,
-        seeds = [PREFIX.as_bytes(), nft_holder.key().as_ref(), nft_token_account.key().as_ref()],
+        seeds = [PREFIX.as_bytes(), nft_holder.key().as_ref(), nft_token.as_ref()],
         payer = nft_holder,
         bump = bump,
-        space = 8 + 8 + 32
+        space = 8 + 8
     )]
     pub nft_stake_data: ProgramAccount<'info, StakingAccount>,
 
     pub system_program: Program<'info, System>,
-    pub token_program: Program<'info, Token>
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub clock: Sysvar<'info, Clock>,
+    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
+#[instruction(bump: u8, nft_token: Pubkey)]
 pub struct UnstakeInstructionStruct<'info> {
     #[account(mut)]
-    pub staking_vault: Account<'info, StakingMachine>,
-
-    #[account(
-        address = constants::SFX_TOKEN_MINT_PUBKEY.parse::<Pubkey>().unwrap()
-    )]
-    pub sfx_token_account: Account<'info, Mint>,
+    pub staking_machine: ProgramAccount<'info, StakingMachine>,
 
     #[account()]
     pub nft_holder: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [PREFIX.as_bytes(), nft_holder.key().as_ref(), nft_token.as_ref()],
+        bump = bump
+    )]
+    pub nft_stake_data: ProgramAccount<'info, StakingAccount>,
+
+    pub clock: Sysvar<'info, Clock>,
 }
 
 #[account]
@@ -135,7 +175,7 @@ pub struct StakingMachine {
 
 #[account]
 pub struct StakingAccount {
-    pub staking_date: u64
+    pub staking_date: i64
 }
 
 
