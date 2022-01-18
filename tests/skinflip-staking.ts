@@ -100,9 +100,8 @@ describe('skinflip-staking', () => {
       {
         accounts: {
           stakingMachine: stakingMachine.publicKey,
-          nftStakeData: stakingAccount,
-          // nftTokenAccountRecipient: tokenAccount,
           nftHolder: provider.wallet.publicKey,
+          nftStakeData: stakingAccount,
           clock: anchor.web3.SYSVAR_CLOCK_PUBKEY,
         },
         signers: []

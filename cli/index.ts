@@ -116,6 +116,7 @@ programCommand('unstake')
     );
 
     console.log('Run unstaking of', nftToken);
+    console.log('Data account', stakingAccount.toString());
 
     const stakeTx = await stakingProgram.rpc.unstake(
       bump,

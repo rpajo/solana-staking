@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token::{Mint, Token, TokenAccount},
+    token::{Token},
     // associated_token::AssociatedToken,
     associated_token::AssociatedToken
     // mint,
@@ -26,6 +26,8 @@ const PREFIX: &str = "skinflip-staking";
 
 #[program]
 pub mod skinflip_staking {
+    use anchor_spl::token;
+
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> ProgramResult {
@@ -58,6 +60,8 @@ pub mod skinflip_staking {
         msg!("Nft holder owner: {}", nft_holder.owner.to_string());
         msg!("Nft holder key: {}", nft_holder.key.to_string());
 
+        msg!("nft_stake_data key: {}", nft_stake_data.key().to_string());
+
         // msg!("Nft token account mint: {}", nft_token_account_recipient.mint.to_string());
         // msg!("Nft token account owner: {}", nft_token_account_recipient.owner.to_string());
 
@@ -65,6 +69,7 @@ pub mod skinflip_staking {
         // msg!("Nft token account mint: {}", nft_token_account.mint.to_string());
         // msg!("Nft token account close_authority: {}", nft_token_account.close_authority.unwrap().to_string());
         // msg!("Nft token account amount: {}", nft_token_account.amount);
+
         staking_machine.staked_nfts = staking_machine.staked_nfts + 1;
         nft_stake_data.staking_date = clock.unix_timestamp;
         
@@ -78,13 +83,19 @@ pub mod skinflip_staking {
         let staking_machine = &mut ctx.accounts.staking_machine;
         let nft_holder = &mut ctx.accounts.nft_holder;
         let nft_stake_data = &mut ctx.accounts.nft_stake_data;
+        let clock = &ctx.accounts.clock;
 
         msg!("Unstake SkinFlip NFT");
         msg!("NFT: {}", nft_token.key().to_string());
+        msg!("NFT holder: {}", nft_holder.key().to_string());
 
-        msg!("Staked at {}", nft_stake_data.staking_date);
+        
+        let time_diff = clock.unix_timestamp - nft_stake_data.staking_date;
+        msg!("Staked nfts {}", staking_machine.staked_nfts);
+        msg!("Staked at {}, time diff: {}", nft_stake_data.staking_date, time_diff);
 
-        Err(ErrorCode::StakingPeriodActive.into())
+        // Err(ErrorCode::StakingPeriodActive.into())
+        Ok(())
     }
 }
 
@@ -132,7 +143,7 @@ pub struct StakeInstructionStruct<'info> {
     */
 
     #[account(
-        init,
+        init_if_needed,
         seeds = [PREFIX.as_bytes(), nft_holder.key().as_ref(), nft_token.as_ref()],
         payer = nft_holder,
         bump = bump,
@@ -151,13 +162,12 @@ pub struct StakeInstructionStruct<'info> {
 #[instruction(bump: u8, nft_token: Pubkey)]
 pub struct UnstakeInstructionStruct<'info> {
     #[account(mut)]
-    pub staking_machine: ProgramAccount<'info, StakingMachine>,
+    pub staking_machine: Account<'info, StakingMachine>,
 
     #[account()]
     pub nft_holder: AccountInfo<'info>,
 
     #[account(
-        mut,
         seeds = [PREFIX.as_bytes(), nft_holder.key().as_ref(), nft_token.as_ref()],
         bump = bump
     )]
