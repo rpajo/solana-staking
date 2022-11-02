@@ -56,6 +56,7 @@ programCommand('stake')
     const { stakingProgram, provider } = initAnchor(keypair, env);
 
     const nftTokenPubkey = new anchor.web3.PublicKey(nftToken);
+    const nftVaultPubkey = new anchor.web3.PublicKey(nftVaultAddress)
 
     const [stakingAccount, bump] = await anchor.web3.PublicKey.findProgramAddress(
       [
@@ -70,13 +71,13 @@ programCommand('stake')
 
     const stakeTx = await stakingProgram.rpc.stake(
       bump,
-      nftTokenPubkey,
       {
         accounts: {
           stakingMachine: stakingMachine.publicKey,
           nftStakeData: stakingAccount,
           nftHolder: provider.wallet.publicKey,
-          
+          nftToken: nftTokenPubkey,
+          nftVault: nftVaultPubkey,
           tokenProgram: TOKEN_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,

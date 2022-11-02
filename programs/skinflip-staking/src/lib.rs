@@ -1,9 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    token::{Token},
+    token::{Token, transfer},
     // associated_token::AssociatedToken,
-    associated_token::AssociatedToken
-    // mint,
+    associated_token::AssociatedToken,
 };
 
 declare_id!("99pkxD7en56LmNoTQcjNdy4vreeCJBjeaoDvWJe2mcjc");
@@ -41,34 +40,38 @@ pub mod skinflip_staking {
         Ok(())
     }
 
-    pub fn stake(ctx: Context<StakeInstructionStruct>, bump: u8,  nft_token: Pubkey) -> ProgramResult {
+    pub fn stake(ctx: Context<StakeInstructionStruct>, bump: u8) -> ProgramResult {
         msg!("Stake SkinFlip NFT");
 
-        msg!("NFT: {}", nft_token.key().to_string());
-
+        
         let staking_machine = &mut ctx.accounts.staking_machine;
         let nft_holder = &mut ctx.accounts.nft_holder;
+        let nft_token = &mut ctx.accounts.nft_token;
+        let nft_vault = &mut ctx.accounts.nft_vault;
         let nft_stake_data = &mut ctx.accounts.nft_stake_data;
-
+        
+        msg!("NFT: {}", nft_token.key().to_string());
         // let nft_token = &mut ctx.accounts.nft_token;
         // let nft_token_account_recipient = &mut ctx.accounts.nft_token_account_recipient;
         let clock = &ctx.accounts.clock;
 
 
         msg!("Staking machine key: {}", staking_machine.key().to_string());
-
         msg!("Nft holder owner: {}", nft_holder.owner.to_string());
         msg!("Nft holder key: {}", nft_holder.key.to_string());
-
         msg!("nft_stake_data key: {}", nft_stake_data.key().to_string());
-
-        // msg!("Nft token account mint: {}", nft_token_account_recipient.mint.to_string());
-        // msg!("Nft token account owner: {}", nft_token_account_recipient.owner.to_string());
-
         msg!("Bump: {}", bump);
-        // msg!("Nft token account mint: {}", nft_token_account.mint.to_string());
-        // msg!("Nft token account close_authority: {}", nft_token_account.close_authority.unwrap().to_string());
-        // msg!("Nft token account amount: {}", nft_token_account.amount);
+
+
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            token::Transfer {
+                from: nft_token.to_account_info(),
+                to: nft_vault.to_account_info(),
+                authority: nft_holder.to_account_info(),
+            },
+        );
+        token::transfer(cpi_ctx, 1)?;
 
         staking_machine.staked_nfts = staking_machine.staked_nfts + 1;
         nft_stake_data.staking_date = clock.unix_timestamp;
@@ -120,17 +123,23 @@ pub struct Initialize<'info> {
 
 
 #[derive(Accounts)]
-#[instruction(bump: u8, nft_token: Pubkey)]
+#[instruction(bump: u8)]
 pub struct StakeInstructionStruct<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        has_one = nft_vault
+    )]
     pub staking_machine: ProgramAccount<'info, StakingMachine>,
 
     #[account(constraint=(nft_holder.data_is_empty() && nft_holder.lamports() > 0))]
     pub nft_holder: AccountInfo<'info>,
-/*
+
     #[account(mut)]
     pub nft_token: AccountInfo<'info>,
 
+    #[account()]
+    nft_vault: AccountInfo<'info>,
+    /*
          
     #[account(
         init,
@@ -144,7 +153,7 @@ pub struct StakeInstructionStruct<'info> {
 
     #[account(
         init_if_needed,
-        seeds = [PREFIX.as_bytes(), nft_holder.key().as_ref(), nft_token.as_ref()],
+        seeds = [PREFIX.as_bytes(), nft_holder.key().as_ref(), nft_token.key().as_ref()],
         payer = nft_holder,
         bump = bump,
         space = 8 + 8

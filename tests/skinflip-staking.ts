@@ -54,13 +54,13 @@ describe('skinflip-staking', () => {
 
     const tx = await program.rpc.stake(
       bump,
-      nftToken,
       {
         accounts: {
           stakingMachine: stakingMachine.publicKey,
           
           nftStakeData: stakingAccount,
-          // nftTokenAccountRecipient: tokenAccount,
+          nftToken: tokenAccount,
+          nftVault: stakingNftVault.publicKey,
 
           nftHolder: provider.wallet.publicKey,
           
